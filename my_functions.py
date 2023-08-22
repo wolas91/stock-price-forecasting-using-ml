@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import ta
 import mplfinance as mpf
+import gradio as gr
 
 def load_data(company_name: str):
     ticker = company_name.lower()
@@ -149,3 +150,59 @@ def generate_features(date):
 #     df['UO'] = ta.momentum.UltimateOscillator(df['High'], df['Low'], df['Close']).ultimate_oscillator()
 #     df['DPO'] = ta.trend.DPOIndicator(df['Close']).dpo()
     return df
+
+def predictions(company_name: str, model):
+    company_name = company_name
+    df = load_data(company_name)
+    df['Company'] = company_name.upper()
+    df = generate_features(df)
+    df = df.iloc[-30:]
+    y_pred = model.predict(df.iloc[:,2:])
+    
+    y_true = df['Close']
+    y_pred = y_pred[-1]
+    
+    start_date = pd.to_datetime(df['Date'].iloc[0])
+    dates_pred = pd.date_range(start=start_date, periods=(len(y_true) + len(y_pred)), freq='B')
+
+    y_true = np.concatenate([y_true.values, [np.nan] * len(y_pred)])
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(dates_pred, y_true, label='Rzeczywiste wartości', marker='o')
+    plt.plot(dates_pred[-len(y_pred):], y_pred, label='Przewidywane wartości', marker='o', linestyle='--')
+    plt.xlabel('Data')
+    plt.ylabel('Wartości')
+    plt.title('Porównanie rzeczywistych i przewidywanych wartości')
+    plt.legend()
+    plt.grid()
+    plt.tight_layout()
+    plt.show()
+
+def gradio_test(company_name: str):
+    company_name = company_name
+    df = load_data(company_name)
+    df['Company'] = company_name.upper()
+    df = generate_features(df)
+    df = df.iloc[-30:]
+    y_pred = xgb_model.predict(df.iloc[:,2:])
+    
+    y_true = df['Close']
+    y_pred = y_pred[-1]
+    
+    start_date = pd.to_datetime(df['Date'].iloc[0])
+    dates_pred = pd.date_range(start=start_date, periods=(len(y_true) + len(y_pred)), freq='B')
+
+    y_true = np.concatenate([y_true.values, [np.nan] * len(y_pred)])
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(dates_pred, y_true, label='Rzeczywiste wartości', marker='o')
+    plt.plot(dates_pred[-len(y_pred):], y_pred, label='Przewidywane wartości', marker='o', linestyle='--')
+    plt.xlabel('Data')
+    plt.ylabel('Wartości')
+    plt.title('Porównanie rzeczywistych i przewidywanych wartości')
+    plt.legend()
+    plt.grid()
+    plt.tight_layout()
+    plt.show()
+    return plt
+
