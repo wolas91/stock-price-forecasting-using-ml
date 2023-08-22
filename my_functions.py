@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import ta
 import mplfinance as mpf
 import gradio as gr
+from tqdm import tqdm
 
 def load_data(company_name: str):
     ticker = company_name.lower()
@@ -30,7 +31,7 @@ def load_data(company_name: str):
     
     return df
 
-def plot_candle(df, company_name: str, interval: int, width: int,  height: int):
+def plot_candle(df, company_name: str, interval: int, figsize=(10,5)):
     df_plot = df.copy()
     df_plot = df_plot[df_plot['Company'] == company_name.upper()]
     df_plot.set_index('Date', inplace=True)
@@ -41,20 +42,20 @@ def plot_candle(df, company_name: str, interval: int, width: int,  height: int):
         title=f'Wykres {company_name.upper()}',
         ylabel='Price ($)',
         volume=True,
-        figsize=(width, height)
+        figsize=figsize
             )
 
 
 def generate_target(df, days_to_forecast=1, first_test_day='2023-01-01', last_test_day='2023-07-31'):
-    y_df = pd.DataFrame(columns=['Date', 'Company'] + [f'y_{i + 1}' for i in range(days_to_forecast)])
-
+    y_df = pd.DataFrame(columns=['Date', 'Company'] + [f'y_{i+1}' for i in range(days_to_forecast)])
+    
     for name in tqdm(df['Company'].unique(), desc="Generating Targets"):
         company = df[df['Company'] == name].copy()
 
         y_columns = []
         for i in range(days_to_forecast):
-            company[f'y_{i + 1}'] = company['Close'].shift(-i - days_to_forecast)
-            y_columns.append(f'y_{i + 1}')
+            company[f'y_{i+1}'] = company['Close'].shift(-i - days_to_forecast)
+            y_columns.append(f'y_{i+1}')
 
         y_df = pd.concat([y_df, company[['Date', 'Company'] + y_columns]], ignore_index=True)
 
@@ -62,7 +63,7 @@ def generate_target(df, days_to_forecast=1, first_test_day='2023-01-01', last_te
     df.reset_index(drop=True, inplace=True)
     y_df.reset_index(drop=True, inplace=True)
     X = df
-
+    
     date_features = pd.DataFrame()
 
     for name in tqdm(X['Company'].unique(), desc="Generating Date Features"):
@@ -77,14 +78,14 @@ def generate_target(df, days_to_forecast=1, first_test_day='2023-01-01', last_te
     y_cleaned = y_df.drop(nan_indices)
     X_cleaned.reset_index(drop=True, inplace=True)
     y_cleaned.reset_index(drop=True, inplace=True)
-
+    
     train_condition = X_cleaned['Date'] < first_test_day
     X_train, y_train = X_cleaned[train_condition], y_cleaned[train_condition]
-
+    
     test_condition = (X_cleaned['Date'] >= first_test_day) & (X_cleaned['Date'] <= last_test_day)
     X_test, y_test = X_cleaned[test_condition], y_cleaned[test_condition]
-
-    y_train, y_test = y_train.iloc[:, 2:].values, y_test.iloc[:, 2:].values
+    
+    y_train, y_test = y_train.iloc[:,2:].values, y_test.iloc[:,2:].values
     return X_train, y_train, X_test, y_test
 
 def calculate_mape(actual, pred):
@@ -148,7 +149,7 @@ def generate_features(date):
 #     df['PVO_hist'] = ta.momentum.pvo_hist(df['Volume'])
 #     df['PVO_signal'] = ta.momentum.pvo_signal(df['Volume'])
 #     df['UO'] = ta.momentum.UltimateOscillator(df['High'], df['Low'], df['Close']).ultimate_oscillator()
-#     df['DPO'] = ta.trend.DPOIndicator(df['Close']).dpo()
+#     df['DPO'] = ta.trend.DPOIndicator(df['Close']).dpo() 
     return df
 
 def predictions(company_name: str, model):
@@ -177,32 +178,3 @@ def predictions(company_name: str, model):
     plt.grid()
     plt.tight_layout()
     plt.show()
-
-def gradio_test(company_name: str):
-    company_name = company_name
-    df = load_data(company_name)
-    df['Company'] = company_name.upper()
-    df = generate_features(df)
-    df = df.iloc[-30:]
-    y_pred = xgb_model.predict(df.iloc[:,2:])
-    
-    y_true = df['Close']
-    y_pred = y_pred[-1]
-    
-    start_date = pd.to_datetime(df['Date'].iloc[0])
-    dates_pred = pd.date_range(start=start_date, periods=(len(y_true) + len(y_pred)), freq='B')
-
-    y_true = np.concatenate([y_true.values, [np.nan] * len(y_pred)])
-
-    plt.figure(figsize=(10, 6))
-    plt.plot(dates_pred, y_true, label='Rzeczywiste wartości', marker='o')
-    plt.plot(dates_pred[-len(y_pred):], y_pred, label='Przewidywane wartości', marker='o', linestyle='--')
-    plt.xlabel('Data')
-    plt.ylabel('Wartości')
-    plt.title('Porównanie rzeczywistych i przewidywanych wartości')
-    plt.legend()
-    plt.grid()
-    plt.tight_layout()
-    plt.show()
-    return plt
-
